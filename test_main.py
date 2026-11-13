@@ -68,3 +68,19 @@ def test_delete_product_with_token():
 def test_register_invalid_data():
     response = client.post("/api/v1/register", json={})
     assert response.status_code == 422
+
+def test_delete_product_forbidden():
+    # Регистрируем кладовщика
+    client.post("/api/v1/register", json={"username": "worker_test", "password": "123", "role": "worker"})
+    
+    # Логинимся под ним
+    response_login = client.post("/api/v1/login", data={"username": "worker_test", "password": "123"})
+    worker_token = response_login.json()["access_token"]
+    
+    # Пытаемся удалить товар (должны получить 403)
+    response = client.delete(
+        "/api/v1/products/1", 
+        headers={"Authorization": f"Bearer {worker_token}"}
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Недостаточно прав для удаления"

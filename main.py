@@ -90,10 +90,17 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
 # --- CRUD ТОВАРОВ ---
 @app.get("/api/v1/products", tags=["Products"])
-def get_products(skip: int = 0, limit: int = 10, search: str = "", db: Session = Depends(get_db)):
+def get_products(skip: int = 0, limit: int = 10, search: str = "", sort_by: str = "id", order: str = "asc", db: Session = Depends(get_db)):
     query = db.query(models.Product)
     if search:
         query = query.filter(models.Product.name.ilike(f"%{search}%"))
+    
+    # Сортировка
+    if order == "desc":
+        query = query.order_by(getattr(models.Product, sort_by).desc())
+    else:
+        query = query.order_by(getattr(models.Product, sort_by).asc())
+        
     products = query.offset(skip).limit(limit).all()
     return JSONResponse(content=jsonable_encoder(products), media_type="application/json; charset=utf-8")
 
@@ -118,6 +125,10 @@ def update_product(product_id: int, product: schemas.ProductCreate, db: Session 
 
 @app.delete("/api/v1/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Products"])
 def delete_product(product_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    # Проверка прав (403)
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Недостаточно прав для удаления")
+        
     db_product = db.query(models.Product).filter(models.Product.id == product_id).first()
     if not db_product:
         raise HTTPException(status_code=404, detail="Товар не найден")
